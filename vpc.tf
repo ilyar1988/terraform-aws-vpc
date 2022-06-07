@@ -17,6 +17,7 @@ resource "aws_subnet" "public" {
   }
 }
 
+# Subnets : private
 resource "aws_subnet" "private" {
   count = length(var.private_sub)
   vpc_id = aws_vpc.terra_vpc.id
@@ -62,7 +63,7 @@ resource "aws_route_table_association" "a" {
 
 # Create a NAT gateway with an Elastic IP for each private subnet to get internet connectivity
 resource "aws_eip" "test-eip" {
-  # count      = length(var.private_sub)
+  # count    = length(var.private_sub)
   vpc        = true
   depends_on = [aws_internet_gateway.test-igw]
 }
@@ -94,4 +95,41 @@ resource "aws_route_table_association" "b" {
   count          = length(var.private_sub)
   subnet_id      = element(aws_subnet.private.*.id, count.index)
   route_table_id = aws_route_table.private_rt.id
+}
+
+/*==== VPC's Default Security Group ======*/
+resource "aws_security_group" "Ilya-sg" {
+  name        = "Ilya-sg"
+  description = "Default security group to allow inbound/outbound from the VPC"
+  vpc_id      = "${aws_vpc.terra_vpc.id}"
+  depends_on  = [aws_vpc.terra_vpc]
+  ingress {
+    from_port = "80"
+    to_port   = "80"
+    protocol  = "tcp"
+    cidr_blocks = aws_vpc.terra_vpc.vpc_cidr
+  }
+  
+  egress {
+    from_port = "0"
+    to_port   = "0"
+    protocol  = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "web-1" {
+    #ami = "${data.aws_ami.my_ami.id}"
+    ami = "ami-0d857ff0f5fc4e03b"
+    availability_zone = "us-east-1a"
+    instance_type = "t2.micro"
+    key_name = "LaptopKey"
+    subnet_id = "${aws_subnet.private_sub.id}"
+    vpc_security_group_ids = ["${aws_security_group.allow_all.id}"]
+    associate_public_ip_address = true	
+    tags = {
+        Name = "Server-1"
+        Env = "QA"
+        Owner = "Ilya"
+    }
 }
